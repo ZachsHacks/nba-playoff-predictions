@@ -1,64 +1,90 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { PrePlayoffForm } from "@/components/pre-playoff-form";
 import type { LeagueSettings, PrePlayoffPrediction } from "@/lib/types";
 
-export default async function PrePlayoffPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: leagueId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+type PageData = {
+  settings: LeagueSettings;
+  existing: PrePlayoffPrediction | null;
+  locked: boolean;
+};
 
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("league_id")
-    .eq("league_id", leagueId)
-    .eq("user_id", user.id)
-    .single();
+export default function PrePlayoffPage() {
+  const router = useRouter();
+  const params = useParams();
+  const leagueId = params.id as string;
+  const supabase = createClient();
 
-  if (!membership) notFound();
+  const [loading, setLoading] = useState(true);
+  const [pageData, setPageData] = useState<PageData | null>(null);
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("settings")
-    .eq("id", leagueId)
-    .single();
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
 
-  if (!league) notFound();
+      const { data: membership } = await supabase
+        .from("league_members")
+        .select("league_id")
+        .eq("league_id", leagueId)
+        .eq("user_id", user.id)
+        .single();
 
-  const { data: existing } = await supabase
-    .from("pre_playoff_predictions")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("league_id", leagueId)
-    .single();
+      if (!membership) { router.push("/dashboard"); return; }
 
-  let locked = false;
-  const { data: round1Series } = await supabase
-    .from("series")
-    .select("series_start_time")
-    .eq("round", 1)
-    .not("series_start_time", "is", null)
-    .order("series_start_time", { ascending: true })
-    .limit(1);
+      const { data: league } = await supabase
+        .from("leagues")
+        .select("settings")
+        .eq("id", leagueId)
+        .single();
 
-  if (round1Series && round1Series.length > 0 && round1Series[0].series_start_time) {
-    const lockTime = new Date(round1Series[0].series_start_time);
-    lockTime.setMinutes(lockTime.getMinutes() - 30);
-    locked = new Date() >= lockTime;
-  }
+      if (!league) { router.push("/dashboard"); return; }
+
+      const { data: existing } = await supabase
+        .from("pre_playoff_predictions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("league_id", leagueId)
+        .single();
+
+      let locked = false;
+      const { data: round1Series } = await supabase
+        .from("series")
+        .select("series_start_time")
+        .eq("round", 1)
+        .not("series_start_time", "is", null)
+        .order("series_start_time", { ascending: true })
+        .limit(1);
+
+      if (round1Series && round1Series.length > 0 && round1Series[0].series_start_time) {
+        const lockTime = new Date(round1Series[0].series_start_time);
+        lockTime.setMinutes(lockTime.getMinutes() - 30);
+        locked = new Date() >= lockTime;
+      }
+
+      setPageData({
+        settings: (league as { settings: LeagueSettings }).settings,
+        existing: (existing as PrePlayoffPrediction) ?? null,
+        locked,
+      });
+      setLoading(false);
+    }
+    load();
+  }, [leagueId]);
+
+  if (loading) return <div className="p-8 text-center">Loading...</div>;
+  if (!pageData) return null;
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center p-4">
       <PrePlayoffForm
         leagueId={leagueId}
-        settings={(league as { settings: LeagueSettings }).settings}
-        existing={(existing as PrePlayoffPrediction) ?? null}
-        locked={locked}
+        settings={pageData.settings}
+        existing={pageData.existing}
+        locked={pageData.locked}
       />
     </div>
   );

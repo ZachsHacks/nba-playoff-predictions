@@ -1,5 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect, notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { SeriesCard } from "@/components/series-card";
 import { InviteCodeDisplay } from "@/components/invite-code-display";
 import { Button } from "@/components/ui/button";
@@ -7,59 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import type { League, LeagueMember, Series, Prediction } from "@/lib/types";
 
-export default async function LeaguePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+export default function LeaguePage() {
+  const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+  const supabase = createClient();
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (!league) notFound();
-
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("*")
-    .eq("league_id", id)
-    .eq("user_id", user.id)
-    .single();
-
-  if (!membership) notFound();
-
-  const { data: allSeries } = await supabase
-    .from("series")
-    .select("*")
-    .order("round", { ascending: true })
-    .order("conference", { ascending: true });
-
-  const { data: predictions } = await supabase
-    .from("predictions")
-    .select("*")
-    .eq("league_id", id)
-    .eq("user_id", user.id);
-
-  const { data: topMembers } = await supabase
-    .from("league_members")
-    .select("*, profiles(display_name)")
-    .eq("league_id", id)
-    .order("total_score", { ascending: false })
-    .limit(5);
-
-  const isCommissioner = (league as League).commissioner_id === user.id;
-  const seriesList = (allSeries ?? []) as Series[];
-  const predictionMap = new Map(
-    (predictions ?? []).map((p: Prediction) => [p.series_id, p])
-  );
-
-  const seriesByRound = seriesList.reduce((acc, s) => {
-    if (!acc[s.round]) acc[s.round] = [];
-    acc[s.round].push(s);
-    return acc;
-  }, {} as Record<number, Series[]>);
+  const [loading, setLoading] = useState(true);
+  const [league, setLeague] = useState<League | null>(null);
+  const [userId, setUserId] = useState<string>("");
+  const [isCommissioner, setIsCommissioner] = useState(false);
+  const [seriesByRound, setSeriesByRound] = useState<Record<number, Series[]>>({});
+  const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [predictionMap, setPredictionMap] = useState<Map<string, Prediction>>(new Map());
+  const [topMembers, setTopMembers] = useState<(LeagueMember & { profiles: { display_name: string } })[]>([]);
 
   const roundNames: Record<number, string> = {
     1: "First Round",
@@ -68,10 +32,79 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
     4: "NBA Finals",
   };
 
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
+
+      setUserId(user.id);
+
+      const { data: leagueData } = await supabase
+        .from("leagues")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (!leagueData) { router.push("/dashboard"); return; }
+      setLeague(leagueData as League);
+      setIsCommissioner((leagueData as League).commissioner_id === user.id);
+
+      const { data: membership } = await supabase
+        .from("league_members")
+        .select("*")
+        .eq("league_id", id)
+        .eq("user_id", user.id)
+        .single();
+
+      if (!membership) { router.push("/dashboard"); return; }
+
+      const { data: allSeries } = await supabase
+        .from("series")
+        .select("*")
+        .order("round", { ascending: true })
+        .order("conference", { ascending: true });
+
+      const { data: predictions } = await supabase
+        .from("predictions")
+        .select("*")
+        .eq("league_id", id)
+        .eq("user_id", user.id);
+
+      const { data: topMembersData } = await supabase
+        .from("league_members")
+        .select("*, profiles(display_name)")
+        .eq("league_id", id)
+        .order("total_score", { ascending: false })
+        .limit(5);
+
+      const series = (allSeries ?? []) as Series[];
+      setSeriesList(series);
+
+      const pMap = new Map(
+        (predictions ?? []).map((p: Prediction) => [p.series_id, p])
+      );
+      setPredictionMap(pMap);
+
+      const byRound = series.reduce((acc, s) => {
+        if (!acc[s.round]) acc[s.round] = [];
+        acc[s.round].push(s);
+        return acc;
+      }, {} as Record<number, Series[]>);
+      setSeriesByRound(byRound);
+
+      setTopMembers((topMembersData ?? []) as (LeagueMember & { profiles: { display_name: string } })[]);
+      setLoading(false);
+    }
+    load();
+  }, [id]);
+
+  if (loading) return <div className="p-8 text-center">Loading...</div>;
+  if (!league) return null;
+
   return (
     <div className="container mx-auto max-w-3xl p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{(league as League).name}</h1>
+        <h1 className="text-2xl font-bold">{league.name}</h1>
         <div className="flex items-center gap-2">
           {isCommissioner && (
             <Link href={`/leagues/${id}/settings`}>
@@ -86,7 +119,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>Invite code:</span>
-        <InviteCodeDisplay code={(league as League).invite_code} />
+        <InviteCodeDisplay code={league.invite_code} />
       </div>
 
       <Link href={`/leagues/${id}/pre-playoff`}>
@@ -108,11 +141,11 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
           <CardTitle className="text-base">Top 5</CardTitle>
         </CardHeader>
         <CardContent>
-          {(topMembers ?? []).length === 0 ? (
+          {topMembers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No scores yet</p>
           ) : (
             <div className="space-y-1">
-              {(topMembers ?? []).map((m: LeagueMember & { profiles: { display_name: string } }, i: number) => (
+              {topMembers.map((m, i) => (
                 <div key={m.user_id} className="flex justify-between text-sm">
                   <span>{i + 1}. {m.profiles?.display_name ?? "Unknown"}</span>
                   <span className="font-mono">{m.total_score} pts</span>
