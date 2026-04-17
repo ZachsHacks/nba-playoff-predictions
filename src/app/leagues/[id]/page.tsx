@@ -132,13 +132,31 @@ export default function LeaguePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold">Pre-Playoff Predictions</p>
-                <p className="text-sm text-muted-foreground">Conference champs, NBA champion, Finals MVP</p>
+                <p className="text-sm text-muted-foreground">Conference champs + NBA champion. Locks when Round 1 tips off.</p>
               </div>
               <Button size="sm" variant="outline">View</Button>
             </div>
           </CardContent>
         </Card>
       </Link>
+
+      {league.settings.features.finals_mvp && seriesByRound[4]?.[0] && !seriesByRound[4][0].team_a.toLowerCase().startsWith("tbd") && !seriesByRound[4][0].team_b.toLowerCase().startsWith("tbd") && (
+        <Link href={`/leagues/${id}/finals-mvp`}>
+          <Card className="hover:bg-accent/50 transition-colors cursor-pointer border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">Finals MVP Prediction</p>
+                  <p className="text-sm text-muted-foreground">
+                    {seriesByRound[4][0].team_a} vs {seriesByRound[4][0].team_b}. Locks at Finals Game 1 tipoff.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline">Pick</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <Card>
         <CardHeader className="pb-2">

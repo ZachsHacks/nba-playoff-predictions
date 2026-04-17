@@ -16,11 +16,13 @@ export type LeagueSettings = {
   scoring: {
     rounds: Record<RoundNumber, RoundScoring>;
     conference_champion: number;
+    nba_champion: number;
     finals_mvp: number;
     finals_game_pick: number;
   };
   features: {
     conference_champions: boolean;
+    nba_champion: boolean;
     finals_mvp: boolean;
     finals_game_predictions: boolean;
   };
@@ -35,11 +37,13 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
       4: { series_winner: 40, series_score_bonus: 20 },
     },
     conference_champion: 25,
+    nba_champion: 50,
     finals_mvp: 15,
     finals_game_pick: 5,
   },
   features: {
     conference_champions: true,
+    nba_champion: true,
     finals_mvp: true,
     finals_game_predictions: true,
   },

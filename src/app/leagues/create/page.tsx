@@ -17,6 +17,7 @@ import {
 
 const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
   conference_champions: "Conference champion predictions",
+  nba_champion: "NBA champion prediction",
   finals_mvp: "Finals MVP prediction",
   finals_game_predictions: "Finals game-by-game predictions",
 };
@@ -52,7 +53,7 @@ export default function CreateLeaguePage() {
   };
 
   const updateExtraScoring = (
-    key: "conference_champion" | "finals_mvp" | "finals_game_pick",
+    key: "conference_champion" | "nba_champion" | "finals_mvp" | "finals_game_pick",
     value: number
   ) => {
     setSettings((s) => ({
@@ -158,14 +159,14 @@ export default function CreateLeaguePage() {
           <CardHeader>
             <CardTitle>Scoring by Round</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Points per correct pick. Bonus only awarded when the winner is also correct.
+              Points for picking the correct series winner, plus bonus points if you also nail the number of games.
             </p>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 text-xs font-semibold text-muted-foreground">
               <div></div>
-              <div className="w-20 text-center">Winner</div>
-              <div className="w-20 text-center">Score bonus</div>
+              <div className="w-20 text-center">Correct winner</div>
+              <div className="w-20 text-center">Game prediction bonus</div>
             </div>
             {ROUND_ORDER.map((round) => (
               <div
@@ -214,6 +215,19 @@ export default function CreateLeaguePage() {
                 value={settings.scoring.conference_champion}
                 onChange={(e) =>
                   updateExtraScoring("conference_champion", parseInt(e.target.value) || 0)
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="nba_champ">Correct NBA champion</Label>
+              <Input
+                id="nba_champ"
+                type="number"
+                min={0}
+                className="w-20 text-center"
+                value={settings.scoring.nba_champion}
+                onChange={(e) =>
+                  updateExtraScoring("nba_champion", parseInt(e.target.value) || 0)
                 }
               />
             </div>

@@ -10,7 +10,15 @@ type PageData = {
   settings: LeagueSettings;
   existing: PrePlayoffPrediction | null;
   locked: boolean;
+  eastTeams: string[];
+  westTeams: string[];
 };
+
+function extractRealTeams(teams: string[]): string[] {
+  return Array.from(new Set(teams))
+    .filter((t) => t && !t.toLowerCase().startsWith("tbd"))
+    .sort();
+}
 
 export default function PrePlayoffPage() {
   const router = useRouter();
@@ -51,25 +59,41 @@ export default function PrePlayoffPage() {
         .eq("league_id", leagueId)
         .single();
 
-      let locked = false;
       const { data: round1Series } = await supabase
         .from("series")
-        .select("series_start_time")
-        .eq("round", 1)
-        .not("series_start_time", "is", null)
-        .order("series_start_time", { ascending: true })
-        .limit(1);
+        .select("conference, team_a, team_b, series_start_time")
+        .eq("round", 1);
 
-      if (round1Series && round1Series.length > 0 && round1Series[0].series_start_time) {
-        const lockTime = new Date(round1Series[0].series_start_time);
-        lockTime.setMinutes(lockTime.getMinutes() - 30);
-        locked = new Date() >= lockTime;
+      let locked = false;
+      if (round1Series && round1Series.length > 0) {
+        const startTimes = round1Series
+          .map((s) => s.series_start_time)
+          .filter((t): t is string => !!t)
+          .sort();
+        if (startTimes.length > 0) {
+          const lockTime = new Date(startTimes[0]);
+          lockTime.setMinutes(lockTime.getMinutes() - 30);
+          locked = new Date() >= lockTime;
+        }
       }
+
+      const eastTeams = extractRealTeams(
+        (round1Series ?? [])
+          .filter((s) => s.conference === "East")
+          .flatMap((s) => [s.team_a, s.team_b])
+      );
+      const westTeams = extractRealTeams(
+        (round1Series ?? [])
+          .filter((s) => s.conference === "West")
+          .flatMap((s) => [s.team_a, s.team_b])
+      );
 
       setPageData({
         settings: (league as { settings: LeagueSettings }).settings,
         existing: (existing as PrePlayoffPrediction) ?? null,
         locked,
+        eastTeams,
+        westTeams,
       });
       setLoading(false);
     }
@@ -86,6 +110,8 @@ export default function PrePlayoffPage() {
         settings={pageData.settings}
         existing={pageData.existing}
         locked={pageData.locked}
+        eastTeams={pageData.eastTeams}
+        westTeams={pageData.westTeams}
       />
     </div>
   );

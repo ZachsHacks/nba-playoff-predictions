@@ -109,8 +109,8 @@ async function scoreFinalsPredictions(
   for (const pp of prePlays) {
     let points = 0;
 
-    if (pp.nba_champion === series.winner) {
-      points += settings.scoring.conference_champion;
+    if (settings.features.nba_champion && pp.nba_champion === series.winner) {
+      points += settings.scoring.nba_champion;
     }
 
     if (settings.features.finals_mvp && series.finals_mvp && pp.finals_mvp === series.finals_mvp) {

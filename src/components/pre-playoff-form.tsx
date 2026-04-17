@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueSettings, PrePlayoffPrediction } from "@/lib/types";
@@ -14,17 +13,27 @@ type PrePlayoffFormProps = {
   settings: LeagueSettings;
   existing: PrePlayoffPrediction | null;
   locked: boolean;
+  eastTeams: string[];
+  westTeams: string[];
 };
 
-export function PrePlayoffForm({ leagueId, settings, existing, locked }: PrePlayoffFormProps) {
+export function PrePlayoffForm({
+  leagueId,
+  settings,
+  existing,
+  locked,
+  eastTeams,
+  westTeams,
+}: PrePlayoffFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const [eastChamp, setEastChamp] = useState(existing?.conference_champion_east ?? "");
   const [westChamp, setWestChamp] = useState(existing?.conference_champion_west ?? "");
   const [champion, setChampion] = useState(existing?.nba_champion ?? "");
-  const [mvp, setMvp] = useState(existing?.finals_mvp ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const allTeams = [...eastTeams, ...westTeams].sort();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +50,9 @@ export function PrePlayoffForm({ leagueId, settings, existing, locked }: PrePlay
       conference_champion_east: settings.features.conference_champions ? eastChamp || null : null,
       conference_champion_west: settings.features.conference_champions ? westChamp || null : null,
       nba_champion: champion,
-      finals_mvp: settings.features.finals_mvp ? mvp || null : null,
+      // Finals MVP stays on this table but is set from a separate form once
+      // Finals matchup is known. Preserve any existing value here.
+      finals_mvp: existing?.finals_mvp ?? null,
       updated_at: new Date().toISOString(),
     };
 
@@ -66,11 +77,16 @@ export function PrePlayoffForm({ leagueId, settings, existing, locked }: PrePlay
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>Pre-Playoff Predictions</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Lock in your champions before Round 1 tips off. Finals MVP is a separate prediction you&apos;ll make once the Finals teams are set.
+        </p>
       </CardHeader>
       <CardContent>
         {locked ? (
           <div className="space-y-3">
-            <p className="text-muted-foreground">Predictions are locked (playoffs have started).</p>
+            <p className="text-muted-foreground">
+              Predictions are locked (Round 1 has started).
+            </p>
             {existing && (
               <div className="space-y-2 text-sm">
                 {settings.features.conference_champions && (
@@ -80,9 +96,6 @@ export function PrePlayoffForm({ leagueId, settings, existing, locked }: PrePlay
                   </>
                 )}
                 <p><strong>NBA Champion:</strong> {existing.nba_champion}</p>
-                {settings.features.finals_mvp && (
-                  <p><strong>Finals MVP:</strong> {existing.finals_mvp ?? "No pick"}</p>
-                )}
               </div>
             )}
           </div>
@@ -92,45 +105,49 @@ export function PrePlayoffForm({ leagueId, settings, existing, locked }: PrePlay
               <>
                 <div className="space-y-2">
                   <Label htmlFor="east">Eastern Conference Champion</Label>
-                  <Input
+                  <select
                     id="east"
                     value={eastChamp}
                     onChange={(e) => setEastChamp(e.target.value)}
-                    placeholder="e.g. Boston Celtics"
-                  />
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Select a team...</option>
+                    {eastTeams.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="west">Western Conference Champion</Label>
-                  <Input
+                  <select
                     id="west"
                     value={westChamp}
                     onChange={(e) => setWestChamp(e.target.value)}
-                    placeholder="e.g. Denver Nuggets"
-                  />
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Select a team...</option>
+                    {westTeams.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                 </div>
               </>
             )}
             <div className="space-y-2">
               <Label htmlFor="champion">NBA Champion</Label>
-              <Input
+              <select
                 id="champion"
                 value={champion}
                 onChange={(e) => setChampion(e.target.value)}
-                placeholder="e.g. Boston Celtics"
                 required
-              />
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Select a team...</option>
+                {allTeams.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
-            {settings.features.finals_mvp && (
-              <div className="space-y-2">
-                <Label htmlFor="mvp">Finals MVP</Label>
-                <Input
-                  id="mvp"
-                  value={mvp}
-                  onChange={(e) => setMvp(e.target.value)}
-                  placeholder="e.g. Jayson Tatum"
-                />
-              </div>
-            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Saving..." : existing ? "Update Predictions" : "Submit Predictions"}
