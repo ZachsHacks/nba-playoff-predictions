@@ -1,6 +1,6 @@
-// Fetches NBA playoff data from balldontlie.io API
+// Fetches NBA postseason data from balldontlie.io.
 // Docs: https://docs.balldontlie.io
-// Requires API key (free tier available)
+// Free tier = 5 req/min which is plenty for a daily cron.
 
 type BDLGame = {
   id: number;
@@ -23,17 +23,16 @@ const API_BASE = "https://api.balldontlie.io/v1";
 
 async function fetchBDL(endpoint: string): Promise<BDLResponse> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: {
-      Authorization: process.env.NBA_API_KEY!,
-    },
+    headers: { Authorization: process.env.NBA_API_KEY! },
+    cache: "no-store",
   });
   if (!res.ok) throw new Error(`BDL API error: ${res.status} ${res.statusText}`);
   return res.json();
 }
 
 export type PlayoffSeries = {
-  external_id: string;
-  round: number;
+  external_id: string;                   // `${season}-${lowTeamId}-${highTeamId}`
+  round: number;                         // 1=first round, 2=semis, 3=conf finals, 4=finals
   conference: "East" | "West" | "Finals";
   team_a: string;
   team_b: string;
@@ -42,13 +41,13 @@ export type PlayoffSeries = {
   series_start_time: string | null;
   status: "upcoming" | "active" | "complete";
   winner: string | null;
-  final_score: string | null;
-  games: BDLGame[];
+  final_score: string | null;            // e.g. "4-2"
 };
 
 export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
-  const currentYear = new Date().getFullYear();
-  const season = new Date().getMonth() < 9 ? currentYear - 1 : currentYear;
+  // 2025-26 season starts in Oct 2025. balldontlie uses starting-year convention.
+  const now = new Date();
+  const season = now.getMonth() < 9 ? now.getFullYear() - 1 : now.getFullYear();
 
   let allGames: BDLGame[] = [];
   let cursor: number | null = null;
@@ -60,7 +59,6 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
       per_page: "100",
     });
     if (cursor) params.set("cursor", String(cursor));
-
     const response = await fetchBDL(`/games?${params}`);
     allGames = allGames.concat(response.data);
     cursor = response.meta.next_cursor;
@@ -70,7 +68,7 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
 
   const seriesMap = new Map<string, BDLGame[]>();
   for (const game of allGames) {
-    const ids = [game.home_team.id, game.visitor_team.id].sort();
+    const ids = [game.home_team.id, game.visitor_team.id].sort((a, b) => a - b);
     const key = `${season}-${ids[0]}-${ids[1]}`;
     if (!seriesMap.has(key)) seriesMap.set(key, []);
     seriesMap.get(key)!.push(game);
@@ -84,14 +82,14 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
     const teamA = firstGame.home_team;
     const teamB = firstGame.visitor_team;
 
-    let teamAWins = 0;
-    let teamBWins = 0;
+    let aWins = 0;
+    let bWins = 0;
     for (const g of games) {
       if (g.status !== "Final") continue;
       const homeWon = g.home_team_score > g.visitor_team_score;
       const winnerId = homeWon ? g.home_team.id : g.visitor_team.id;
-      if (winnerId === teamA.id) teamAWins++;
-      else teamBWins++;
+      if (winnerId === teamA.id) aWins++;
+      else bWins++;
     }
 
     const conference =
@@ -99,18 +97,14 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
         ? (teamA.conference as "East" | "West")
         : "Finals";
 
-    let status: "upcoming" | "active" | "complete" = "upcoming";
-    if (teamAWins === 4 || teamBWins === 4) {
-      status = "complete";
-    } else if (games.some((g) => g.status === "Final" || g.status === "In Progress")) {
-      status = "active";
-    }
+    let status: PlayoffSeries["status"] = "upcoming";
+    if (aWins === 4 || bWins === 4) status = "complete";
+    else if (games.some((g) => g.status === "Final" || g.status === "In Progress")) status = "active";
 
-    const winner =
-      teamAWins === 4 ? teamA.full_name : teamBWins === 4 ? teamB.full_name : null;
+    const winner = aWins === 4 ? teamA.full_name : bWins === 4 ? teamB.full_name : null;
     const finalScore =
       status === "complete"
-        ? `${Math.max(teamAWins, teamBWins)}-${Math.min(teamAWins, teamBWins)}`
+        ? `${Math.max(aWins, bWins)}-${Math.min(aWins, bWins)}`
         : null;
 
     seriesList.push({
@@ -119,16 +113,18 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
       conference,
       team_a: teamA.full_name,
       team_b: teamB.full_name,
-      team_a_wins: teamAWins,
-      team_b_wins: teamBWins,
+      team_a_wins: aWins,
+      team_b_wins: bWins,
       series_start_time: firstGame.date ? new Date(firstGame.date).toISOString() : null,
       status,
       winner,
       final_score: finalScore,
-      games,
     });
   }
 
+  // Round detection: chronological order within each conference.
+  // First 4 series per conference = Round 1, next 2 = Semis, next 1 = Conf Finals.
+  // Finals always = Round 4.
   for (const conf of ["East", "West", "Finals"] as const) {
     const confSeries = seriesList
       .filter((s) => s.conference === conf)
@@ -150,4 +146,12 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
   }
 
   return seriesList;
+}
+
+export function normalizeTeamName(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function teamsMatch(a: string, b: string): boolean {
+  return normalizeTeamName(a) === normalizeTeamName(b);
 }
