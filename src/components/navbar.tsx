@@ -12,7 +12,7 @@ export function Navbar() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {

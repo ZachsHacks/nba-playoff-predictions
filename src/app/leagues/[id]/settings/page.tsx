@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -42,7 +43,8 @@ export default function SettingsPage() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user || user.id !== league.commissioner_id) {
         router.push(`/leagues/${leagueId}`);
         return;
@@ -71,6 +73,30 @@ export default function SettingsPage() {
     }
 
     router.push(`/leagues/${leagueId}`);
+    router.refresh();
+  };
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+      `Delete "${leagueName}"? This permanently removes the league and all predictions. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("leagues")
+      .delete()
+      .eq("id", leagueId);
+
+    if (deleteError) {
+      setError(`Couldn't delete: ${deleteError.message}`);
+      setDeleting(false);
+      return;
+    }
+
+    router.push("/dashboard");
     router.refresh();
   };
 
@@ -233,6 +259,26 @@ export default function SettingsPage() {
       <Button onClick={handleSave} className="w-full" disabled={saving}>
         {saving ? "Saving..." : "Save Settings"}
       </Button>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Deleting the league removes it for everyone and wipes all predictions. This cannot be undone.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="destructive"
+            className="w-full"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Delete League"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
