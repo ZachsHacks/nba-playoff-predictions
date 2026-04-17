@@ -6,8 +6,16 @@ import { Navbar } from "@/components/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "NBA Playoff Predictions",
-  description: "Compete with friends by predicting NBA playoff outcomes",
+  title: "NBA Pickems",
+  description: "Pick the winners. Beat your friends. NBA playoff prediction leagues with customizable scoring.",
+  metadataBase: new URL("https://nbapickems.com"),
+  openGraph: {
+    title: "NBA Pickems",
+    description: "Pick the winners. Beat your friends. NBA playoff prediction leagues with customizable scoring.",
+    url: "https://nbapickems.com",
+    siteName: "NBA Pickems",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

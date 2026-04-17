@@ -8,11 +8,11 @@ export default function HomePage() {
       {/* Hero */}
       <div className="py-20 text-center space-y-6">
         <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-          NBA Playoff Predictions
+          NBA Pickems
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Create a league, invite your friends, and compete by predicting every
-          playoff series. Customizable scoring. Real-time leaderboards.
+          Pick the winners. Beat your friends. Build your own playoff league
+          with customizable scoring and a real-time leaderboard.
         </p>
         <div className="flex justify-center gap-4">
           <Link href="/signup">

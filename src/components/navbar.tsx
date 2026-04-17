@@ -33,7 +33,7 @@ export function Navbar() {
     <nav className="border-b bg-background">
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
         <Link href={user ? "/dashboard" : "/"} className="text-lg font-bold">
-          Playoff Predictions
+          NBA Pickems
         </Link>
         <div className="flex items-center gap-4">
           {user ? (
