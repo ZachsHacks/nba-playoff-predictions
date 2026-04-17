@@ -19,13 +19,13 @@ const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
   conference_champions: "Conference champion predictions",
   nba_champion: "NBA champion prediction",
   finals_mvp: "Finals MVP prediction",
-  finals_game_predictions: "Finals game-by-game predictions",
 };
 
 const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
 
-function normalizeInviteCode(raw: string) {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+function cleanInviteCode(raw: string) {
+  // Collapse whitespace and trim. Keep case + special chars intact.
+  return raw.replace(/\s+/g, "").trim();
 }
 
 export default function CreateLeaguePage() {
@@ -59,7 +59,7 @@ export default function CreateLeaguePage() {
   };
 
   const updateExtraScoring = (
-    key: "conference_champion" | "nba_champion" | "finals_mvp" | "finals_game_pick",
+    key: "conference_champion" | "nba_champion" | "finals_mvp",
     value: number
   ) => {
     setSettings((s) => ({
@@ -86,22 +86,22 @@ export default function CreateLeaguePage() {
       if (authError) throw new Error(`Auth error: ${authError.message}`);
       if (!user) throw new Error("You need to sign in again before creating a league.");
 
-      const normalized = normalizeInviteCode(inviteCode);
-      if (normalized.length < 4) {
-        throw new Error("Invite code must be at least 4 letters/numbers.");
+      const cleaned = cleanInviteCode(inviteCode);
+      if (cleaned.length < 4) {
+        throw new Error("Invite code must be at least 4 characters.");
       }
 
       setStatus("Creating your league...");
 
       const { data: league, error: createError } = await supabase
         .from("leagues")
-        .insert({ name, invite_code: normalized, commissioner_id: user.id, settings })
+        .insert({ name, invite_code: cleaned, commissioner_id: user.id, settings })
         .select()
         .single();
 
       if (createError?.code === "23505") {
         throw new Error(
-          `Invite code "${normalized}" is taken. Pick a different code.`
+          `Invite code "${cleaned}" is taken. Pick a different code.`
         );
       }
       if (createError) {
@@ -172,10 +172,8 @@ export default function CreateLeaguePage() {
                 <Input
                   id="invite"
                   value={inviteCode}
-                  onChange={(e) => setInviteCode(normalizeInviteCode(e.target.value))}
-                  placeholder="e.g. SHABBOS"
-                  className="uppercase tracking-widest"
-                  maxLength={10}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="e.g. bulls-in-6!"
                   required
                 />
                 <Button
@@ -187,7 +185,7 @@ export default function CreateLeaguePage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                4-10 letters/numbers. Share this with friends so they can join.
+                At least 4 characters. Anything goes — letters, numbers, emoji. Case-sensitive.
               </p>
             </div>
             <div className="space-y-2">
@@ -292,19 +290,6 @@ export default function CreateLeaguePage() {
                 value={settings.scoring.finals_mvp}
                 onChange={(e) =>
                   updateExtraScoring("finals_mvp", parseInt(e.target.value) || 0)
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="fgp">Correct Finals game pick (per game)</Label>
-              <Input
-                id="fgp"
-                type="number"
-                min={0}
-                className="w-20 text-center"
-                value={settings.scoring.finals_game_pick}
-                onChange={(e) =>
-                  updateExtraScoring("finals_game_pick", parseInt(e.target.value) || 0)
                 }
               />
             </div>

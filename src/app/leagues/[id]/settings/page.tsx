@@ -13,7 +13,6 @@ const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
   conference_champions: "Conference champion predictions",
   nba_champion: "NBA champion prediction",
   finals_mvp: "Finals MVP prediction",
-  finals_game_predictions: "Finals game-by-game predictions",
 };
 
 const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
@@ -64,21 +63,21 @@ export default function SettingsPage() {
     setSaving(true);
     setError("");
 
-    const normalizedCode = inviteCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
-    if (normalizedCode.length < 4) {
-      setError("Invite code must be at least 4 letters/numbers.");
+    const cleanedCode = inviteCode.replace(/\s+/g, "").trim();
+    if (cleanedCode.length < 4) {
+      setError("Invite code must be at least 4 characters.");
       setSaving(false);
       return;
     }
 
     const { error: updateError } = await supabase
       .from("leagues")
-      .update({ name: leagueName, invite_code: normalizedCode, settings })
+      .update({ name: leagueName, invite_code: cleanedCode, settings })
       .eq("id", leagueId);
 
     if (updateError) {
       if (updateError.code === "23505") {
-        setError(`Invite code "${normalizedCode}" is taken. Pick a different code.`);
+        setError(`Invite code "${cleanedCode}" is taken. Pick a different code.`);
       } else {
         setError(updateError.message);
       }
@@ -134,7 +133,7 @@ export default function SettingsPage() {
   };
 
   const updateExtraScoring = (
-    key: "conference_champion" | "nba_champion" | "finals_mvp" | "finals_game_pick",
+    key: "conference_champion" | "nba_champion" | "finals_mvp",
     value: number
   ) => {
     setSettings({
@@ -166,14 +165,10 @@ export default function SettingsPage() {
             <Input
               id="invite"
               value={inviteCode}
-              onChange={(e) =>
-                setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
-              }
-              className="uppercase tracking-widest"
-              maxLength={10}
+              onChange={(e) => setInviteCode(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              4-10 letters/numbers. Anyone with this code can join the league.
+              At least 4 characters. Anything goes (letters, numbers, emoji). Case-sensitive. Anyone with this code can join.
             </p>
           </div>
         </CardContent>
@@ -252,17 +247,6 @@ export default function SettingsPage() {
               className="w-20 text-center"
               value={settings.scoring.finals_mvp}
               onChange={(e) => updateExtraScoring("finals_mvp", parseInt(e.target.value) || 0)}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="fgp">Correct Finals game pick (per game)</Label>
-            <Input
-              id="fgp"
-              type="number"
-              min={0}
-              className="w-20 text-center"
-              value={settings.scoring.finals_game_pick}
-              onChange={(e) => updateExtraScoring("finals_game_pick", parseInt(e.target.value) || 0)}
             />
           </div>
         </CardContent>

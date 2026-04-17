@@ -125,28 +125,4 @@ async function scoreFinalsPredictions(
       });
     }
   }
-
-  if (settings.features.finals_game_predictions) {
-    await scoreFinalsGames(supabase, series, leagueId, settings);
-  }
-}
-
-async function scoreFinalsGames(
-  supabase: SupabaseClient,
-  series: Series,
-  leagueId: string,
-  settings: LeagueSettings
-) {
-  const { data: gamePreds } = await supabase
-    .from("game_predictions")
-    .select("*")
-    .eq("league_id", leagueId)
-    .eq("series_id", series.id);
-
-  if (!gamePreds || gamePreds.length === 0) return;
-
-  // Finals game-by-game scoring requires individual game results
-  // For MVP, this is a placeholder -- game results would need to be stored
-  // in a separate games table or derived from the NBA API data
-  console.log(`Finals game scoring for league ${leagueId}: ${gamePreds.length} predictions found (scoring deferred)`);
 }

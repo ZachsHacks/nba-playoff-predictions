@@ -90,7 +90,7 @@ export function PredictionForm({ series, leagueId, existingPrediction, locked, r
               <div className="flex items-baseline justify-between">
                 <Label>Series Winner</Label>
                 <span className="text-xs text-muted-foreground">
-                  Worth {roundScoring.series_winner} pts
+                  {roundScoring.series_winner} pts
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -113,9 +113,9 @@ export function PredictionForm({ series, leagueId, existingPrediction, locked, r
 
             <div className="space-y-2">
               <div className="flex items-baseline justify-between">
-                <Label>Series Score (Game Prediction)</Label>
+                <Label>Series Score</Label>
                 <span className="text-xs text-muted-foreground">
-                  +{roundScoring.series_score_bonus} pts bonus if you also pick the winner
+                  {roundScoring.series_score_bonus} pts
                 </span>
               </div>
               <div className="grid grid-cols-4 gap-2">

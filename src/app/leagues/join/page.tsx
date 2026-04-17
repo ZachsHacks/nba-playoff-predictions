@@ -26,7 +26,7 @@ export default function JoinLeaguePage() {
     const { data: league, error: findError } = await supabase
       .from("leagues")
       .select("id")
-      .eq("invite_code", code.toUpperCase().trim())
+      .eq("invite_code", code.replace(/\s+/g, "").trim())
       .single();
 
     if (findError || !league) {
@@ -73,12 +73,9 @@ export default function JoinLeaguePage() {
               <Input
                 id="code"
                 value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
-                }
-                placeholder="e.g. SHABBOS"
-                maxLength={10}
-                className="uppercase tracking-widest text-center text-lg"
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter the invite code"
+                className="text-center text-lg"
                 required
               />
             </div>
