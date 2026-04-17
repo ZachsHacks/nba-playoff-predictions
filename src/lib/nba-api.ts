@@ -53,11 +53,11 @@ export async function fetchPlayoffData(): Promise<PlayoffSeries[]> {
   let cursor: number | null = null;
 
   do {
-    const params = new URLSearchParams({
-      seasons: String(season),
-      postseason: "true",
-      per_page: "100",
-    });
+    // balldontlie uses array-style params: seasons[]=2025
+    const params = new URLSearchParams();
+    params.append("seasons[]", String(season));
+    params.append("postseason", "true");
+    params.append("per_page", "100");
     if (cursor) params.set("cursor", String(cursor));
     const response = await fetchBDL(`/games?${params}`);
     allGames = allGames.concat(response.data);
