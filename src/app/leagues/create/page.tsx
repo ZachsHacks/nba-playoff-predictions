@@ -27,11 +27,12 @@ export default function CreateLeaguePage() {
   const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
-  const [settings, setSettings] = useState<LeagueSettings>(
-    () => structuredClone(DEFAULT_LEAGUE_SETTINGS)
+  const [settings, setSettings] = useState<LeagueSettings>(() =>
+    JSON.parse(JSON.stringify(DEFAULT_LEAGUE_SETTINGS))
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
 
   const updateRoundScoring = (
     round: RoundNumber,
@@ -70,44 +71,61 @@ export default function CreateLeaguePage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setStatus("Checking your session...");
     setLoading(true);
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      setError("You need to sign in again before creating a league.");
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw new Error(`Auth error: ${authError.message}`);
+      if (!user) throw new Error("You need to sign in again before creating a league.");
+
+      setStatus("Creating your league...");
+
+      const insertLeague = async (code: string) =>
+        supabase
+          .from("leagues")
+          .insert({ name, invite_code: code, commissioner_id: user.id, settings })
+          .select()
+          .single();
+
+      let { data: league, error: createError } = await insertLeague(generateInviteCode());
+      if (createError?.code === "23505") {
+        ({ data: league, error: createError } = await insertLeague(generateInviteCode()));
+      }
+
+      if (createError) {
+        throw new Error(`Couldn't save league: ${createError.message} (code ${createError.code})`);
+      }
+      if (!league) {
+        throw new Error("League insert returned no data.");
+      }
+
+      setStatus("Adding you as the commissioner...");
+
+      const { error: memberError } = await supabase
+        .from("league_members")
+        .insert({ league_id: league.id, user_id: user.id });
+
+      if (memberError) {
+        throw new Error(`League saved but couldn't add you as a member: ${memberError.message}`);
+      }
+
+      setStatus("Redirecting to your new league...");
+
+      // Belt and suspenders: try router first, fall back to hard navigation
+      const target = `/leagues/${league.id}`;
+      router.push(target);
+      setTimeout(() => {
+        if (typeof window !== "undefined" && window.location.pathname !== target) {
+          window.location.assign(target);
+        }
+      }, 500);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      setStatus("");
       setLoading(false);
-      return;
     }
-
-    const insertLeague = async (code: string) =>
-      supabase
-        .from("leagues")
-        .insert({ name, invite_code: code, commissioner_id: user.id, settings })
-        .select()
-        .single();
-
-    let { data: league, error: createError } = await insertLeague(generateInviteCode());
-    if (createError?.code === "23505") {
-      ({ data: league, error: createError } = await insertLeague(generateInviteCode()));
-    }
-
-    if (createError || !league) {
-      setError(createError?.message ?? "Failed to create league");
-      setLoading(false);
-      return;
-    }
-
-    const { error: memberError } = await supabase
-      .from("league_members")
-      .insert({ league_id: league.id, user_id: user.id });
-
-    if (memberError) {
-      setError(`League created but couldn't add you as a member: ${memberError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    router.push(`/leagues/${league.id}`);
   };
 
   return (
@@ -262,7 +280,14 @@ export default function CreateLeaguePage() {
 
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm font-medium text-destructive">Error</p>
+            <p className="text-sm text-destructive mt-1 break-words">{error}</p>
+          </div>
+        )}
+
+        {status && !error && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="text-sm text-foreground">{status}</p>
           </div>
         )}
 
