@@ -6,18 +6,19 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import type { Series, Prediction, SeriesScore } from "@/lib/types";
+import type { Series, Prediction, SeriesScore, RoundNumber, RoundScoring } from "@/lib/types";
 
 type PredictionFormProps = {
   series: Series;
   leagueId: string;
   existingPrediction: Prediction | null;
   locked: boolean;
+  roundScoring: RoundScoring;
 };
 
 const SCORES: SeriesScore[] = ["4-0", "4-1", "4-2", "4-3"];
 
-export function PredictionForm({ series, leagueId, existingPrediction, locked }: PredictionFormProps) {
+export function PredictionForm({ series, leagueId, existingPrediction, locked, roundScoring }: PredictionFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const [winner, setWinner] = useState(existingPrediction?.predicted_winner ?? "");
@@ -86,7 +87,12 @@ export function PredictionForm({ series, leagueId, existingPrediction, locked }:
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label>Series Winner</Label>
+              <div className="flex items-baseline justify-between">
+                <Label>Series Winner</Label>
+                <span className="text-xs text-muted-foreground">
+                  Worth {roundScoring.series_winner} pts
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {[series.team_a, series.team_b].map((team) => (
                   <button
@@ -106,7 +112,12 @@ export function PredictionForm({ series, leagueId, existingPrediction, locked }:
             </div>
 
             <div className="space-y-2">
-              <Label>Series Score</Label>
+              <div className="flex items-baseline justify-between">
+                <Label>Series Score (Game Prediction)</Label>
+                <span className="text-xs text-muted-foreground">
+                  +{roundScoring.series_score_bonus} pts bonus if you also pick the winner
+                </span>
+              </div>
               <div className="grid grid-cols-4 gap-2">
                 {SCORES.map((s) => (
                   <button

@@ -26,6 +26,7 @@ export default function SettingsPage() {
 
   const [settings, setSettings] = useState<LeagueSettings | null>(null);
   const [leagueName, setLeagueName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,7 +36,7 @@ export default function SettingsPage() {
     async function load() {
       const { data: league } = await supabase
         .from("leagues")
-        .select("name, settings, commissioner_id")
+        .select("name, invite_code, settings, commissioner_id")
         .eq("id", leagueId)
         .single();
 
@@ -52,6 +53,7 @@ export default function SettingsPage() {
       }
 
       setLeagueName(league.name);
+      setInviteCode(league.invite_code);
       setSettings(league.settings as LeagueSettings);
       setLoading(false);
     }
@@ -62,13 +64,24 @@ export default function SettingsPage() {
     setSaving(true);
     setError("");
 
+    const normalizedCode = inviteCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+    if (normalizedCode.length < 4) {
+      setError("Invite code must be at least 4 letters/numbers.");
+      setSaving(false);
+      return;
+    }
+
     const { error: updateError } = await supabase
       .from("leagues")
-      .update({ name: leagueName, settings })
+      .update({ name: leagueName, invite_code: normalizedCode, settings })
       .eq("id", leagueId);
 
     if (updateError) {
-      setError(updateError.message);
+      if (updateError.code === "23505") {
+        setError(`Invite code "${normalizedCode}" is taken. Pick a different code.`);
+      } else {
+        setError(updateError.message);
+      }
       setSaving(false);
       return;
     }
@@ -147,6 +160,21 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label htmlFor="name">League Name</Label>
             <Input id="name" value={leagueName} onChange={(e) => setLeagueName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite">Invite Code</Label>
+            <Input
+              id="invite"
+              value={inviteCode}
+              onChange={(e) =>
+                setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
+              }
+              className="uppercase tracking-widest"
+              maxLength={10}
+            />
+            <p className="text-xs text-muted-foreground">
+              4-10 letters/numbers. Anyone with this code can join the league.
+            </p>
           </div>
         </CardContent>
       </Card>

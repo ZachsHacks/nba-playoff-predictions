@@ -5,12 +5,20 @@ import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PredictionForm } from "@/components/prediction-form";
 import { isSeriesLocked } from "@/lib/utils";
-import type { Series, Prediction } from "@/lib/types";
+import {
+  DEFAULT_LEAGUE_SETTINGS,
+  type LeagueSettings,
+  type RoundNumber,
+  type RoundScoring,
+  type Series,
+  type Prediction,
+} from "@/lib/types";
 
 type PageData = {
   series: Series;
   prediction: Prediction | null;
   locked: boolean;
+  roundScoring: RoundScoring;
 };
 
 export default function PredictPage() {
@@ -38,6 +46,12 @@ export default function PredictPage() {
 
       if (!membership) { router.push("/dashboard"); return; }
 
+      const { data: league } = await supabase
+        .from("leagues")
+        .select("settings")
+        .eq("id", leagueId)
+        .single();
+
       const { data: series } = await supabase
         .from("series")
         .select("*")
@@ -56,10 +70,15 @@ export default function PredictPage() {
 
       const locked = isSeriesLocked((series as Series).series_start_time);
 
+      const settings = ((league?.settings as LeagueSettings) ?? DEFAULT_LEAGUE_SETTINGS);
+      const roundKey = (series as Series).round as RoundNumber;
+      const roundScoring = settings.scoring.rounds[roundKey] ?? DEFAULT_LEAGUE_SETTINGS.scoring.rounds[roundKey];
+
       setPageData({
         series: series as Series,
         prediction: (prediction as Prediction) ?? null,
         locked,
+        roundScoring,
       });
       setLoading(false);
     }
@@ -76,6 +95,7 @@ export default function PredictPage() {
         leagueId={leagueId}
         existingPrediction={pageData.prediction}
         locked={pageData.locked}
+        roundScoring={pageData.roundScoring}
       />
     </div>
   );

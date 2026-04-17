@@ -73,9 +73,11 @@ export default function JoinLeaguePage() {
               <Input
                 id="code"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="e.g. ABC123"
-                maxLength={6}
+                onChange={(e) =>
+                  setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
+                }
+                placeholder="e.g. SHABBOS"
+                maxLength={10}
                 className="uppercase tracking-widest text-center text-lg"
                 required
               />

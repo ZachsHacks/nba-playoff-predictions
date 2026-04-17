@@ -24,10 +24,16 @@ const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
 
 const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
 
+function normalizeInviteCode(raw: string) {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+}
+
 export default function CreateLeaguePage() {
   const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
+  const [inviteCode, setInviteCode] = useState(() => generateInviteCode());
+  const [teamName, setTeamName] = useState("");
   const [settings, setSettings] = useState<LeagueSettings>(() =>
     JSON.parse(JSON.stringify(DEFAULT_LEAGUE_SETTINGS))
   );
@@ -80,20 +86,24 @@ export default function CreateLeaguePage() {
       if (authError) throw new Error(`Auth error: ${authError.message}`);
       if (!user) throw new Error("You need to sign in again before creating a league.");
 
-      setStatus("Creating your league...");
-
-      const insertLeague = async (code: string) =>
-        supabase
-          .from("leagues")
-          .insert({ name, invite_code: code, commissioner_id: user.id, settings })
-          .select()
-          .single();
-
-      let { data: league, error: createError } = await insertLeague(generateInviteCode());
-      if (createError?.code === "23505") {
-        ({ data: league, error: createError } = await insertLeague(generateInviteCode()));
+      const normalized = normalizeInviteCode(inviteCode);
+      if (normalized.length < 4) {
+        throw new Error("Invite code must be at least 4 letters/numbers.");
       }
 
+      setStatus("Creating your league...");
+
+      const { data: league, error: createError } = await supabase
+        .from("leagues")
+        .insert({ name, invite_code: normalized, commissioner_id: user.id, settings })
+        .select()
+        .single();
+
+      if (createError?.code === "23505") {
+        throw new Error(
+          `Invite code "${normalized}" is taken. Pick a different code.`
+        );
+      }
       if (createError) {
         throw new Error(`Couldn't save league: ${createError.message} (code ${createError.code})`);
       }
@@ -105,7 +115,11 @@ export default function CreateLeaguePage() {
 
       const { error: memberError } = await supabase
         .from("league_members")
-        .insert({ league_id: league.id, user_id: user.id });
+        .insert({
+          league_id: league.id,
+          user_id: user.id,
+          team_name: teamName.trim() || null,
+        });
 
       if (memberError) {
         throw new Error(`League saved but couldn't add you as a member: ${memberError.message}`);
@@ -140,10 +154,10 @@ export default function CreateLeaguePage() {
 
       <form onSubmit={handleCreate} className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>League Name</CardTitle></CardHeader>
-          <CardContent>
+          <CardHeader><CardTitle>League Setup</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">League Name</Label>
               <Input
                 id="name"
                 value={name}
@@ -151,6 +165,43 @@ export default function CreateLeaguePage() {
                 placeholder="e.g. Office Bracket Busters"
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite">Invite Code</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="invite"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(normalizeInviteCode(e.target.value))}
+                  placeholder="e.g. SHABBOS"
+                  className="uppercase tracking-widest"
+                  maxLength={10}
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setInviteCode(generateInviteCode())}
+                >
+                  Random
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                4-10 letters/numbers. Share this with friends so they can join.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team">Your Team Name (optional)</Label>
+              <Input
+                id="team"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="e.g. Brooklyn Brackets"
+                maxLength={40}
+              />
+              <p className="text-xs text-muted-foreground">
+                How you&apos;ll show up on the leaderboard. Leave blank to use your display name.
+              </p>
             </div>
           </CardContent>
         </Card>

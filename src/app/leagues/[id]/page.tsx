@@ -5,10 +5,13 @@ import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SeriesCard } from "@/components/series-card";
 import { InviteCodeDisplay } from "@/components/invite-code-display";
+import { TeamNameEditor } from "@/components/team-name-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { ROUND_LABELS, type League, type LeagueMember, type RoundNumber, type Series, type Prediction } from "@/lib/types";
+
+type TopMember = LeagueMember & { team_name: string | null; profiles: { display_name: string } | null };
 
 const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
 const EXPECTED_SERIES_COUNT: Record<RoundNumber, number> = { 1: 8, 2: 4, 3: 2, 4: 1 };
@@ -26,7 +29,8 @@ export default function LeaguePage() {
   const [seriesByRound, setSeriesByRound] = useState<Record<number, Series[]>>({});
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [predictionMap, setPredictionMap] = useState<Map<string, Prediction>>(new Map());
-  const [topMembers, setTopMembers] = useState<(LeagueMember & { profiles: { display_name: string } })[]>([]);
+  const [topMembers, setTopMembers] = useState<TopMember[]>([]);
+  const [myMembership, setMyMembership] = useState<{ team_name: string | null; display_name: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -48,12 +52,21 @@ export default function LeaguePage() {
 
       const { data: membership } = await supabase
         .from("league_members")
-        .select("*")
+        .select("*, profiles(display_name)")
         .eq("league_id", id)
         .eq("user_id", user.id)
         .single();
 
       if (!membership) { router.push("/dashboard"); return; }
+
+      const myMember = membership as unknown as {
+        team_name: string | null;
+        profiles: { display_name: string } | null;
+      };
+      setMyMembership({
+        team_name: myMember.team_name ?? null,
+        display_name: myMember.profiles?.display_name ?? "You",
+      });
 
       const { data: allSeries } = await supabase
         .from("series")
@@ -89,7 +102,7 @@ export default function LeaguePage() {
       }, {} as Record<number, Series[]>);
       setSeriesByRound(byRound);
 
-      setTopMembers((topMembersData ?? []) as (LeagueMember & { profiles: { display_name: string } })[]);
+      setTopMembers((topMembersData ?? []) as unknown as TopMember[]);
       setLoading(false);
     }
     load();
@@ -158,6 +171,15 @@ export default function LeaguePage() {
         </Link>
       )}
 
+      {myMembership && (
+        <TeamNameEditor
+          leagueId={id}
+          userId={userId}
+          initialTeamName={myMembership.team_name}
+          fallbackName={myMembership.display_name}
+        />
+      )}
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Top 5</CardTitle>
@@ -169,7 +191,7 @@ export default function LeaguePage() {
             <div className="space-y-1">
               {topMembers.map((m, i) => (
                 <div key={m.user_id} className="flex justify-between text-sm">
-                  <span>{i + 1}. {m.profiles?.display_name ?? "Unknown"}</span>
+                  <span>{i + 1}. {m.team_name ?? m.profiles?.display_name ?? "Unknown"}</span>
                   <span className="font-mono">{m.total_score} pts</span>
                 </div>
               ))}

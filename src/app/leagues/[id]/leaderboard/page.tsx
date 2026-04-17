@@ -53,15 +53,15 @@ export default function LeaderboardPage() {
 
       const { data: members } = await supabase
         .from("league_members")
-        .select("user_id, total_score, profiles(display_name)")
+        .select("user_id, total_score, team_name, profiles(display_name)")
         .eq("league_id", leagueId)
         .order("total_score", { ascending: false });
 
-      const leaderboard = (members ?? []).map((m: { user_id: string; total_score: number; profiles: { display_name: string }[] | { display_name: string } | null }, i: number) => {
+      const leaderboard = (members ?? []).map((m: { user_id: string; total_score: number; team_name: string | null; profiles: { display_name: string }[] | { display_name: string } | null }, i: number) => {
         const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
         return {
           rank: i + 1,
-          display_name: profile?.display_name ?? "Unknown",
+          display_name: m.team_name ?? profile?.display_name ?? "Unknown",
           total_score: m.total_score,
           user_id: m.user_id,
         };
