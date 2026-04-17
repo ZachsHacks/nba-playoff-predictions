@@ -8,30 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { LeagueSettings } from "@/lib/types";
-
-const DEFAULT_SETTINGS: LeagueSettings = {
-  scoring: {
-    series_winner: 10,
-    series_score_bonus: 5,
-    conference_champion: 10,
-    finals_mvp: 10,
-    finals_game_pick: 5,
-  },
-  features: {
-    conference_champions: true,
-    finals_mvp: true,
-    finals_game_predictions: true,
-  },
-};
-
-const SCORING_LABELS: Record<keyof LeagueSettings["scoring"], string> = {
-  series_winner: "Correct series winner",
-  series_score_bonus: "Correct series score (bonus)",
-  conference_champion: "Correct conference champion",
-  finals_mvp: "Correct Finals MVP",
-  finals_game_pick: "Correct Finals game pick",
-};
+import {
+  DEFAULT_LEAGUE_SETTINGS,
+  ROUND_LABELS,
+  type LeagueSettings,
+  type RoundNumber,
+} from "@/lib/types";
 
 const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
   conference_champions: "Conference champion predictions",
@@ -39,20 +21,50 @@ const FEATURE_LABELS: Record<keyof LeagueSettings["features"], string> = {
   finals_game_predictions: "Finals game-by-game predictions",
 };
 
+const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
+
 export default function CreateLeaguePage() {
   const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
-  const [settings, setSettings] = useState<LeagueSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<LeagueSettings>(
+    () => structuredClone(DEFAULT_LEAGUE_SETTINGS)
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const updateScoring = (key: keyof LeagueSettings["scoring"], value: number) => {
-    setSettings({ ...settings, scoring: { ...settings.scoring, [key]: value } });
+  const updateRoundScoring = (
+    round: RoundNumber,
+    key: "series_winner" | "series_score_bonus",
+    value: number
+  ) => {
+    setSettings((s) => ({
+      ...s,
+      scoring: {
+        ...s.scoring,
+        rounds: {
+          ...s.scoring.rounds,
+          [round]: { ...s.scoring.rounds[round], [key]: value },
+        },
+      },
+    }));
+  };
+
+  const updateExtraScoring = (
+    key: "conference_champion" | "finals_mvp" | "finals_game_pick",
+    value: number
+  ) => {
+    setSettings((s) => ({
+      ...s,
+      scoring: { ...s.scoring, [key]: value },
+    }));
   };
 
   const toggleFeature = (key: keyof LeagueSettings["features"]) => {
-    setSettings({ ...settings, features: { ...settings.features, [key]: !settings.features[key] } });
+    setSettings((s) => ({
+      ...s,
+      features: { ...s.features, [key]: !s.features[key] },
+    }));
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -60,8 +72,12 @@ export default function CreateLeaguePage() {
     setError("");
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError("Not logged in"); setLoading(false); return; }
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      setError("You need to sign in again before creating a league.");
+      setLoading(false);
+      return;
+    }
 
     const insertLeague = async (code: string) =>
       supabase
@@ -71,7 +87,6 @@ export default function CreateLeaguePage() {
         .single();
 
     let { data: league, error: createError } = await insertLeague(generateInviteCode());
-
     if (createError?.code === "23505") {
       ({ data: league, error: createError } = await insertLeague(generateInviteCode()));
     }
@@ -96,8 +111,13 @@ export default function CreateLeaguePage() {
   };
 
   return (
-    <div className="container mx-auto max-w-xl p-4 py-8 space-y-6">
-      <h1 className="text-2xl font-bold">Create a League</h1>
+    <div className="container mx-auto max-w-2xl p-4 py-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Create a League</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Customize scoring for each round. You&apos;ll get an invite code to share after you create the league.
+        </p>
+      </div>
 
       <form onSubmit={handleCreate} className="space-y-6">
         <Card>
@@ -118,32 +138,102 @@ export default function CreateLeaguePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Scoring</CardTitle>
-            <p className="text-sm text-muted-foreground">Points awarded for each correct prediction.</p>
+            <CardTitle>Scoring by Round</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Points per correct pick. Bonus only awarded when the winner is also correct.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 text-xs font-semibold text-muted-foreground">
+              <div></div>
+              <div className="w-20 text-center">Winner</div>
+              <div className="w-20 text-center">Score bonus</div>
+            </div>
+            {ROUND_ORDER.map((round) => (
+              <div
+                key={round}
+                className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4"
+              >
+                <Label className="font-medium">{ROUND_LABELS[round]}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  className="w-20 text-center"
+                  value={settings.scoring.rounds[round].series_winner}
+                  onChange={(e) =>
+                    updateRoundScoring(round, "series_winner", parseInt(e.target.value) || 0)
+                  }
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  className="w-20 text-center"
+                  value={settings.scoring.rounds[round].series_score_bonus}
+                  onChange={(e) =>
+                    updateRoundScoring(round, "series_score_bonus", parseInt(e.target.value) || 0)
+                  }
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pre-Playoff Bonus Points</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Extra points for picking the eventual champion or Finals MVP before playoffs start.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(Object.entries(settings.scoring) as [keyof LeagueSettings["scoring"], number][]).map(
-              ([key, value]) => (
-                <div key={key} className="flex items-center justify-between gap-4">
-                  <Label htmlFor={`scoring-${key}`}>{SCORING_LABELS[key]}</Label>
-                  <Input
-                    id={`scoring-${key}`}
-                    type="number"
-                    className="w-20 text-center"
-                    value={value}
-                    onChange={(e) => updateScoring(key, parseInt(e.target.value) || 0)}
-                    min={0}
-                  />
-                </div>
-              )
-            )}
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="cc">Correct conference champion</Label>
+              <Input
+                id="cc"
+                type="number"
+                min={0}
+                className="w-20 text-center"
+                value={settings.scoring.conference_champion}
+                onChange={(e) =>
+                  updateExtraScoring("conference_champion", parseInt(e.target.value) || 0)
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="mvp">Correct Finals MVP</Label>
+              <Input
+                id="mvp"
+                type="number"
+                min={0}
+                className="w-20 text-center"
+                value={settings.scoring.finals_mvp}
+                onChange={(e) =>
+                  updateExtraScoring("finals_mvp", parseInt(e.target.value) || 0)
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="fgp">Correct Finals game pick (per game)</Label>
+              <Input
+                id="fgp"
+                type="number"
+                min={0}
+                className="w-20 text-center"
+                value={settings.scoring.finals_game_pick}
+                onChange={(e) =>
+                  updateExtraScoring("finals_game_pick", parseInt(e.target.value) || 0)
+                }
+              />
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Optional Features</CardTitle>
-            <p className="text-sm text-muted-foreground">Toggle which prediction categories this league uses.</p>
+            <p className="text-sm text-muted-foreground">
+              Turn each category on or off for your league.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {(Object.entries(settings.features) as [keyof LeagueSettings["features"], boolean][]).map(
@@ -170,10 +260,14 @@ export default function CreateLeaguePage() {
           </CardContent>
         </Card>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
 
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Creating..." : "Create League"}
+          {loading ? "Creating..." : "Create League & Get Invite Code"}
         </Button>
       </form>
     </div>

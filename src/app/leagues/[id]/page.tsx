@@ -8,7 +8,10 @@ import { InviteCodeDisplay } from "@/components/invite-code-display";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import type { League, LeagueMember, Series, Prediction } from "@/lib/types";
+import { ROUND_LABELS, type League, type LeagueMember, type RoundNumber, type Series, type Prediction } from "@/lib/types";
+
+const ROUND_ORDER: RoundNumber[] = [1, 2, 3, 4];
+const EXPECTED_SERIES_COUNT: Record<RoundNumber, number> = { 1: 8, 2: 4, 3: 2, 4: 1 };
 
 export default function LeaguePage() {
   const router = useRouter();
@@ -24,13 +27,6 @@ export default function LeaguePage() {
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [predictionMap, setPredictionMap] = useState<Map<string, Prediction>>(new Map());
   const [topMembers, setTopMembers] = useState<(LeagueMember & { profiles: { display_name: string } })[]>([]);
-
-  const roundNames: Record<number, string> = {
-    1: "First Round",
-    2: "Conference Semis",
-    3: "Conference Finals",
-    4: "NBA Finals",
-  };
 
   useEffect(() => {
     async function load() {
@@ -117,10 +113,17 @@ export default function LeaguePage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Invite code:</span>
-        <InviteCodeDisplay code={league.invite_code} />
-      </div>
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Invite code</p>
+            <p className="text-xs text-muted-foreground">
+              Share this code so friends can join your league.
+            </p>
+          </div>
+          <InviteCodeDisplay code={league.invite_code} />
+        </CardContent>
+      </Card>
 
       <Link href={`/leagues/${id}/pre-playoff`}>
         <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
@@ -156,26 +159,49 @@ export default function LeaguePage() {
         </CardContent>
       </Card>
 
-      {Object.entries(seriesByRound)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([round, series]) => (
-          <div key={round} className="space-y-3">
-            <h2 className="text-lg font-semibold">{roundNames[Number(round)] ?? `Round ${round}`}</h2>
-            {series.map((s) => (
-              <SeriesCard
-                key={s.id}
-                series={s}
-                prediction={predictionMap.get(s.id) ?? null}
-                leagueId={id}
-              />
-            ))}
-          </div>
-        ))}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold">Bracket</h2>
+          <p className="text-sm text-muted-foreground">
+            Matchups appear here as they&apos;re set. Predictions lock 30 minutes before each series tips off.
+          </p>
+        </div>
+        {ROUND_ORDER.map((round) => {
+          const series = seriesByRound[round] ?? [];
+          const expected = EXPECTED_SERIES_COUNT[round];
+          const placeholdersNeeded = Math.max(0, expected - series.length);
+          return (
+            <div key={round} className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-base font-semibold">{ROUND_LABELS[round]}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {series.length}/{expected} matchups set
+                </span>
+              </div>
+              {series.map((s) => (
+                <SeriesCard
+                  key={s.id}
+                  series={s}
+                  prediction={predictionMap.get(s.id) ?? null}
+                  leagueId={id}
+                />
+              ))}
+              {Array.from({ length: placeholdersNeeded }).map((_, i) => (
+                <Card key={`placeholder-${round}-${i}`} className="border-dashed">
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    Matchup to be determined
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          );
+        })}
+      </div>
 
       {seriesList.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>No playoff series yet. They will appear here once matchups are set.</p>
-        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          Series data auto-updates once NBA playoff matchups are announced.
+        </p>
       )}
     </div>
   );

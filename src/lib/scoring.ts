@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { LeagueSettings, PrePlayoffPrediction, Series } from "@/lib/types";
+import type { LeagueSettings, PrePlayoffPrediction, RoundNumber, Series } from "@/lib/types";
 
 export async function scoreSeries(supabase: SupabaseClient, seriesId: string) {
   const { data: series } = await supabase
@@ -25,15 +25,17 @@ export async function scoreSeries(supabase: SupabaseClient, seriesId: string) {
 
   for (const [leagueId, preds] of byLeague) {
     const settings = preds[0].leagues.settings as LeagueSettings;
+    const roundKey = series.round as RoundNumber;
+    const roundScoring = settings.scoring.rounds[roundKey];
 
     for (const pred of preds) {
       let points = 0;
 
-      if (pred.predicted_winner === series.winner) {
-        points += settings.scoring.series_winner;
+      if (roundScoring && pred.predicted_winner === series.winner) {
+        points += roundScoring.series_winner;
 
         if (pred.predicted_score === series.final_score) {
-          points += settings.scoring.series_score_bonus;
+          points += roundScoring.series_score_bonus;
         }
       }
 

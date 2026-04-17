@@ -1,7 +1,20 @@
+export type RoundScoring = {
+  series_winner: number;
+  series_score_bonus: number;
+};
+
+export type RoundNumber = 1 | 2 | 3 | 4;
+
+export const ROUND_LABELS: Record<RoundNumber, string> = {
+  1: "First Round",
+  2: "Conference Semifinals",
+  3: "Conference Finals",
+  4: "NBA Finals",
+};
+
 export type LeagueSettings = {
   scoring: {
-    series_winner: number;
-    series_score_bonus: number;
+    rounds: Record<RoundNumber, RoundScoring>;
     conference_champion: number;
     finals_mvp: number;
     finals_game_pick: number;
@@ -11,6 +24,25 @@ export type LeagueSettings = {
     finals_mvp: boolean;
     finals_game_predictions: boolean;
   };
+};
+
+export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
+  scoring: {
+    rounds: {
+      1: { series_winner: 10, series_score_bonus: 5 },
+      2: { series_winner: 20, series_score_bonus: 10 },
+      3: { series_winner: 30, series_score_bonus: 15 },
+      4: { series_winner: 40, series_score_bonus: 20 },
+    },
+    conference_champion: 25,
+    finals_mvp: 15,
+    finals_game_pick: 5,
+  },
+  features: {
+    conference_champions: true,
+    finals_mvp: true,
+    finals_game_predictions: true,
+  },
 };
 
 export type Profile = {
